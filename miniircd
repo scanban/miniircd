@@ -103,7 +103,7 @@ class Client(object):
     __linesep_regexp = re.compile(r"\r?\n")
     # The RFC limit for nicknames is 9 characters, but what the heck.
     __valid_nickname_regexp = re.compile(
-        r"^[][\`_^{|}A-Za-z][][\`_^{|}A-Za-z0-9-]{0,50}$")
+        r"^[][`_^{|}A-Za-z][][`_^{|}A-Za-z0-9-]{0,50}$")
     __valid_channelname_regexp = re.compile(
         r"^[&#+!][^\x00\x07\x0a\x0d ,:]{0,50}$")
 
@@ -389,8 +389,12 @@ class Client(object):
             message = arguments[1]
             client = server.get_client(targetname)
             if client:
-                client.message(":%s %s %s :%s"
-                               % (self.prefix, command, targetname, message))
+                msgx = ":%s %s %s :%s" % (self.prefix, command, targetname, message)
+                client.message(msgx)
+                ignored_msgs = ['PING', 'PONG', '303 {} :'.format(targetname)]
+                if not any(msg in msgx for msg in ignored_msgs):
+                    client.client_log(msgx)
+                    self.client_log(msgx)
             elif server.has_channel(targetname):
                 channel = server.get_channel(targetname)
                 self.message_channel(
@@ -593,13 +597,25 @@ class Client(object):
         if not self.server.logdir:
             return
         if meta:
-            format = "[%s] * %s %s\n"
+            fmt = "[%s] * %s %s\n"
         else:
-            format = "[%s] <%s> %s\n"
+            fmt = "[%s] <%s> %s\n"
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
         logname = channel.name.replace("_", "__").replace("/", "_")
         fp = open("%s/%s.log" % (self.server.logdir, logname), "a")
-        fp.write(format % (timestamp, self.nickname, message))
+        fp.write(fmt % (timestamp, self.nickname, message))
+        fp.close()
+
+    def client_log(self, message, meta=False):
+        if not self.server.logdir:
+            return
+        if meta:
+            fmt = "[%s] * %s %s\n"
+        else:
+            fmt = "[%s] <%s> %s\n"
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        fp = open("%s/%s.log" % (self.server.logdir, self.nickname), "a")
+        fp.write(fmt % (timestamp, self.nickname, message))
         fp.close()
 
     def message_related(self, msg, include_self=False):
